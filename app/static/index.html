@@ -29,8 +29,8 @@
         </label>
       </div>
       <div class="row">
-        <label>Цена от<input id="price-from" type="number" min="0" placeholder="0"></label>
-        <label>Цена до<input id="price-to" type="number" min="0" placeholder="В валюте сайта"></label>
+        <label>Цена от, $<input id="price-from" type="number" min="0" placeholder="0"></label>
+        <label>Цена до, $<input id="price-to" type="number" min="0" placeholder="500"></label>
       </div>
       <fieldset><legend>Где искать</legend><div id="sources" class="sources"></div></fieldset>
       <button type="submit">Найти вещи</button>
@@ -39,6 +39,11 @@
     <section id="status" class="status" hidden></section>
     <section id="source-links" class="source-links"></section>
     <section id="results" class="results"></section>
+    <nav id="pagination" class="pagination" hidden>
+      <button id="previous-page" type="button">← Назад</button>
+      <span id="page-number">Страница 1</span>
+      <button id="next-page" type="button">Дальше →</button>
+    </nav>
   </main>
   <script src="/static/app.js"></script>
 </body>

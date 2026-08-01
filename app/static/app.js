@@ -7,6 +7,10 @@ const sourcesNode = document.querySelector('#sources');
 const resultsNode = document.querySelector('#results');
 const sourceLinksNode = document.querySelector('#source-links');
 const statusNode = document.querySelector('#status');
+const paginationNode = document.querySelector('#pagination');
+const previousPageButton = document.querySelector('#previous-page');
+const nextPageButton = document.querySelector('#next-page');
+const pageNumberNode = document.querySelector('#page-number');
 const money = new Intl.NumberFormat('ru-RU');
 const currencies = {
   RUB: new Intl.NumberFormat('ru-RU', {style: 'currency', currency: 'RUB', maximumFractionDigits: 0}),
@@ -49,19 +53,18 @@ function renderSourceLinks(links) {
     </a>`).join('');
 }
 
-form.addEventListener('submit', async event => {
-  event.preventDefault();
+async function searchPage(page) {
   const button = form.querySelector('button');
   const sources = [...sourcesNode.querySelectorAll('input:checked')].map(node => node.value);
   if (!sources.length) { tg?.showAlert('Выбери хотя бы один сайт'); return; }
   button.disabled = true; statusNode.hidden = false; statusNode.textContent = 'Ищем лучшие варианты…';
-  resultsNode.innerHTML = ''; sourceLinksNode.innerHTML = '';
+  resultsNode.innerHTML = ''; sourceLinksNode.innerHTML = ''; paginationNode.hidden = true;
   try {
     const response = await fetch('/api/search', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ brand: value('#brand') || null, size: value('#size') || null,
         price_from: optionalNumber('#price-from'), price_to: optionalNumber('#price-to'),
-        clothing_type: value('#clothing-type') || null, sources })
+        clothing_type: value('#clothing-type') || null, sources, page })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail?.[0]?.msg || 'Ошибка поиска');
@@ -69,10 +72,33 @@ form.addEventListener('submit', async event => {
     renderSourceLinks(data.source_links || []);
     const total = data.products.length + (data.source_links?.length || 0);
     statusNode.textContent = data.products.length
-      ? `Найдено товаров: ${data.products.length}`
+      ? `Страница ${page} · товаров: ${data.products.length}`
       : (total ? 'Карточки не получены — доступна официальная выдача' : 'Ничего не найдено. Попробуй изменить фильтры.');
+    if (data.products.length) {
+      paginationNode.hidden = false;
+      paginationNode.style.display = 'grid';
+      previousPageButton.disabled = page === 1;
+      nextPageButton.hidden = data.products.length < 24;
+      pageNumberNode.textContent = `Страница ${page}`;
+      paginationNode.dataset.page = String(page);
+    }
   } catch (error) { statusNode.textContent = error.message; }
   finally { button.disabled = false; }
+}
+
+form.addEventListener('submit', event => {
+  event.preventDefault();
+  searchPage(1);
+});
+
+previousPageButton.addEventListener('click', () => {
+  searchPage(Math.max(1, Number(paginationNode.dataset.page || 1) - 1));
+  window.scrollTo({top: form.offsetTop, behavior: 'smooth'});
+});
+
+nextPageButton.addEventListener('click', () => {
+  searchPage(Number(paginationNode.dataset.page || 1) + 1);
+  window.scrollTo({top: form.offsetTop, behavior: 'smooth'});
 });
 
 loadSources().catch(() => { statusNode.hidden = false; statusNode.textContent = 'Не удалось загрузить магазины.'; });

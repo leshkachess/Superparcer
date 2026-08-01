@@ -20,6 +20,7 @@ class SearchFilters(BaseModel):
     price_to: int | None = Field(default=None, ge=0)
     clothing_type: ClothingType | None = None
     sources: list[str] = Field(min_length=1)
+    page: int = Field(default=1, ge=1, le=50)
 
     @model_validator(mode="after")
     def validate_price_range(self) -> "SearchFilters":

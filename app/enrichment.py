@@ -12,8 +12,10 @@ _translation_cache: dict[str, str] = {}
 _translation_semaphore = asyncio.Semaphore(6)
 
 
-async def convert_jpy_products_to_usd(products: list[Product]) -> None:
-    rate = await _jpy_usd_rate()
+async def convert_jpy_products_to_usd(
+    products: list[Product], rate: float | None = None
+) -> None:
+    rate = rate or await get_jpy_usd_rate()
     if rate is None:
         return
     for product in products:
@@ -25,7 +27,7 @@ async def convert_jpy_products_to_usd(products: list[Product]) -> None:
         product.currency = "USD"
 
 
-async def _jpy_usd_rate() -> float | None:
+async def get_jpy_usd_rate() -> float | None:
     global _rate_cache
     if _rate_cache and time.monotonic() - _rate_cache[0] < 3600:
         return _rate_cache[1]
@@ -41,6 +43,12 @@ async def _jpy_usd_rate() -> float | None:
             return None
         _rate_cache = (time.monotonic(), rate)
         return rate
+
+
+def cached_jpy_usd_rate() -> float | None:
+    if _rate_cache and time.monotonic() - _rate_cache[0] < 3600:
+        return _rate_cache[1]
+    return None
 
 
 async def translate_product_titles_to_russian(products: list[Product]) -> None:

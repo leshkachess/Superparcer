@@ -31,15 +31,15 @@ def test_mercari_builds_filtered_official_search_link() -> None:
     filters = SearchFilters(
         brand="Nike",
         size="M",
-        price_from=1000,
-        price_to=10000,
+        price_from=10,
+        price_to=100,
         clothing_type="Худи",
         sources=["mercari_jp"],
     )
-    url = str(scraper.search_link(filters).url)
+    url = str(scraper._search_link(filters, 0.00625).url)
     assert "keyword=Nike+M+%E3%83%91%E3%83%BC%E3%82%AB%E3%83%BC" in url
-    assert "price_min=1000" in url
-    assert "price_max=10000" in url
+    assert "price_min=1600" in url
+    assert "price_max=16000" in url
     assert "status=on_sale" in url
 
 
@@ -93,3 +93,21 @@ def test_mercari_strictly_filters_brand_and_category() -> None:
         24,
     )
     assert [product.title for product in products] == ["ナイキ パーカー"]
+
+
+def test_mercari_pagination_skips_previous_products() -> None:
+    scraper = MercariJPScraper()
+    raw = [
+        {
+            "href": f"https://jp.mercari.com/item/m{index}",
+            "text": f"¥{index * 1000}",
+            "aria": f"Item {index} {index * 1000}円",
+            "image": f"https://example.com/{index}.jpg",
+            "alt": f"Item {index}のサムネイル",
+        }
+        for index in range(1, 4)
+    ]
+    products = scraper._normalize(
+        raw, SearchFilters(sources=["mercari_jp"], page=2), limit=2, offset=2
+    )
+    assert [product.title for product in products] == ["Item 3"]

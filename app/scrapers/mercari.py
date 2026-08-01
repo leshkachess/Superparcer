@@ -4,7 +4,12 @@ import time
 from urllib.parse import urlencode
 
 from app.config import get_settings
-from app.enrichment import convert_jpy_products_to_usd, translate_product_titles_to_russian
+from app.enrichment import (
+    cached_jpy_usd_rate,
+    convert_jpy_products_to_usd,
+    get_jpy_usd_rate,
+    translate_product_titles_to_russian,
+)
 from app.models import ClothingType, Product, SearchFilters, SourceSearchLink
 from app.scrapers.base import BaseScraper
 
@@ -82,24 +87,26 @@ class MercariJPScraper(BaseScraper):
     }
 
     async def search(self, filters: SearchFilters) -> list[Product]:
-        url = str(self.search_link(filters).url)
+        rate = await get_jpy_usd_rate()
+        url = str(self._search_link(filters, rate).url)
+        cache_key = f"{url}#page={filters.page}"
         settings = get_settings()
-        cached = _cache.get(url)
+        cached = _cache.get(cache_key)
         if cached and time.monotonic() - cached[0] < settings.mercari_cache_seconds:
             return cached[1]
         if async_playwright is None:
             raise RuntimeError("Playwright не установлен: pip install -e .")
 
         async with _browser_lock:
-            cached = _cache.get(url)
+            cached = _cache.get(cache_key)
             if cached and time.monotonic() - cached[0] < settings.mercari_cache_seconds:
                 return cached[1]
             products = await self._collect(url, filters)
             await asyncio.gather(
-                convert_jpy_products_to_usd(products),
+                convert_jpy_products_to_usd(products, rate),
                 translate_product_titles_to_russian(products),
             )
-            _cache[url] = (time.monotonic(), products)
+            _cache[cache_key] = (time.monotonic(), products)
             return products
 
     async def _collect(self, url: str, filters: SearchFilters) -> list[Product]:
@@ -125,9 +132,17 @@ class MercariJPScraper(BaseScraper):
                 except PlaywrightTimeoutError as exc:
                     raise RuntimeError("Mercari не отдал карточки товаров") from exc
 
-                for _ in range(4):
+                previous_count = 0
+                stagnant_rounds = 0
+                raw_target = filters.page * settings.mercari_max_items * 4
+                for _ in range(max(5, filters.page * 10)):
                     await page.mouse.wheel(0, 1400)
                     await page.wait_for_timeout(700)
+                    current_count = await page.locator('a[href*="/item/"]').count()
+                    stagnant_rounds = stagnant_rounds + 1 if current_count == previous_count else 0
+                    previous_count = current_count
+                    if current_count >= raw_target or stagnant_rounds >= 3:
+                        break
 
                 raw_items = await page.locator('a[href*="/item/"]').evaluate_all(
                     """
@@ -147,10 +162,19 @@ class MercariJPScraper(BaseScraper):
             finally:
                 await browser.close()
 
-        return self._normalize(raw_items, filters, settings.mercari_max_items)
+        return self._normalize(
+            raw_items,
+            filters,
+            settings.mercari_max_items,
+            offset=(filters.page - 1) * settings.mercari_max_items,
+        )
 
     def _normalize(
-        self, raw_items: list[dict[str, str]], filters: SearchFilters, limit: int
+        self,
+        raw_items: list[dict[str, str]],
+        filters: SearchFilters,
+        limit: int,
+        offset: int = 0,
     ) -> list[Product]:
         products: list[Product] = []
         seen: set[str] = set()
@@ -180,6 +204,9 @@ class MercariJPScraper(BaseScraper):
                 continue
 
             seen.add(url)
+            if offset:
+                offset -= 1
+                continue
             products.append(
                 Product(
                     source=self.source_name,
@@ -217,6 +244,11 @@ class MercariJPScraper(BaseScraper):
         return any(word in folded_title for word in cls._category_keywords[category])
 
     def search_link(self, filters: SearchFilters) -> SourceSearchLink:
+        return self._search_link(filters, cached_jpy_usd_rate())
+
+    def _search_link(
+        self, filters: SearchFilters, jpy_usd_rate: float | None
+    ) -> SourceSearchLink:
         terms = [filters.brand, filters.size]
         if filters.clothing_type:
             terms.append(self._category_terms[filters.clothing_type])
@@ -225,10 +257,10 @@ class MercariJPScraper(BaseScraper):
             "keyword": " ".join(term for term in terms if term),
             "status": "on_sale",
         }
-        if filters.price_from is not None:
-            params["price_min"] = filters.price_from
-        if filters.price_to is not None:
-            params["price_max"] = filters.price_to
+        if jpy_usd_rate and filters.price_from is not None:
+            params["price_min"] = round(filters.price_from / jpy_usd_rate)
+        if jpy_usd_rate and filters.price_to is not None:
+            params["price_max"] = round(filters.price_to / jpy_usd_rate)
 
         return SourceSearchLink(
             source=self.source_name,

@@ -30,4 +30,7 @@ button:disabled { opacity: .55; }
 .price { font-size: 17px; font-weight: 800; }
 .original-price { color: #777; font-size: 11px; margin-top: 2px; }
 .sizes { color: #999; font-size: 11px; margin-top: 5px; }
+.pagination { grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-top: 20px; }
+.pagination button { padding: 12px; }
+.pagination span { color: #aaa; font-size: 13px; white-space: nowrap; }
 @media (max-width: 380px) { .results { grid-template-columns: 1fr; } }
