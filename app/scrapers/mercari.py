@@ -4,6 +4,7 @@ import time
 from urllib.parse import urlencode
 
 from app.config import get_settings
+from app.enrichment import convert_jpy_products_to_usd, translate_product_titles_to_russian
 from app.models import ClothingType, Product, SearchFilters, SourceSearchLink
 from app.scrapers.base import BaseScraper
 
@@ -36,6 +37,50 @@ class MercariJPScraper(BaseScraper):
         ClothingType.ACCESSORY: "アクセサリー",
     }
 
+    _brand_aliases = {
+        "nike": ("nike", "ナイキ"),
+        "adidas": ("adidas", "アディダス"),
+        "uniqlo": ("uniqlo", "ユニクロ"),
+        "levis": ("levis", "levi's", "リーバイス"),
+        "supreme": ("supreme", "シュプリーム"),
+        "stussy": ("stussy", "ステューシー"),
+        "stoneisland": ("stone island", "ストーンアイランド"),
+        "newbalance": ("new balance", "ニューバランス"),
+        "puma": ("puma", "プーマ"),
+        "gucci": ("gucci", "グッチ"),
+        "prada": ("prada", "プラダ"),
+    }
+
+    _category_keywords = {
+        ClothingType.T_SHIRT: ("tシャツ", "tee", "t-shirt", "ティーシャツ"),
+        ClothingType.HOODIE: ("パーカー", "hoodie", "hooded", "フーディ"),
+        ClothingType.JACKET: ("ジャケット", "ブルゾン", "コート", "jacket", "coat"),
+        ClothingType.TROUSERS: ("パンツ", "スラックス", "trousers", "pants"),
+        ClothingType.JEANS: ("ジーンズ", "デニムパンツ", "jeans"),
+        ClothingType.SHOES: (
+            "スニーカー",
+            "シューズ",
+            "ブーツ",
+            "サンダル",
+            "ローファー",
+            "パンプス",
+            "shoes",
+            "sneaker",
+            "boots",
+        ),
+        ClothingType.ACCESSORY: (
+            "アクセサリー",
+            "ネックレス",
+            "ブレスレット",
+            "リング",
+            "ベルト",
+            "帽子",
+            "accessory",
+            "necklace",
+            "bracelet",
+        ),
+    }
+
     async def search(self, filters: SearchFilters) -> list[Product]:
         url = str(self.search_link(filters).url)
         settings = get_settings()
@@ -50,6 +95,10 @@ class MercariJPScraper(BaseScraper):
             if cached and time.monotonic() - cached[0] < settings.mercari_cache_seconds:
                 return cached[1]
             products = await self._collect(url, filters)
+            await asyncio.gather(
+                convert_jpy_products_to_usd(products),
+                translate_product_titles_to_russian(products),
+            )
             _cache[url] = (time.monotonic(), products)
             return products
 
@@ -125,6 +174,11 @@ class MercariJPScraper(BaseScraper):
             if not title:
                 title = item.get("aria", "").strip() or "Товар Mercari"
 
+            if filters.brand and not self._matches_brand(title, filters.brand):
+                continue
+            if filters.clothing_type and not self._matches_category(title, filters.clothing_type):
+                continue
+
             seen.add(url)
             products.append(
                 Product(
@@ -142,6 +196,25 @@ class MercariJPScraper(BaseScraper):
             if len(products) >= limit:
                 break
         return products
+
+    @classmethod
+    def _matches_brand(cls, title: str, brand: str) -> bool:
+        normalized_brand = re.sub(r"[^a-zа-яё0-9]", "", brand.casefold())
+        aliases = cls._brand_aliases.get(normalized_brand, (brand,))
+        folded_title = title.casefold()
+        return any(
+            re.search(rf"(?<![a-z0-9]){re.escape(alias.casefold())}(?![a-z0-9])", folded_title)
+            for alias in aliases
+        )
+
+    @classmethod
+    def _matches_category(cls, title: str, category: ClothingType) -> bool:
+        folded_title = title.casefold()
+        if category == ClothingType.JEANS and any(
+            word in folded_title for word in ("ジャケット", "jacket", "バッグ", "bag")
+        ):
+            return False
+        return any(word in folded_title for word in cls._category_keywords[category])
 
     def search_link(self, filters: SearchFilters) -> SourceSearchLink:
         terms = [filters.brand, filters.size]

@@ -34,8 +34,10 @@ class Product(BaseModel):
     title: str
     brand: str | None = None
     sizes: list[str] = []
-    price: int
+    price: float
     currency: str = "RUB"
+    original_price: float | None = None
+    original_currency: str | None = None
     clothing_type: ClothingType | None = None
     url: HttpUrl
     image_url: HttpUrl | None = None

@@ -10,7 +10,8 @@ const statusNode = document.querySelector('#status');
 const money = new Intl.NumberFormat('ru-RU');
 const currencies = {
   RUB: new Intl.NumberFormat('ru-RU', {style: 'currency', currency: 'RUB', maximumFractionDigits: 0}),
-  JPY: new Intl.NumberFormat('ru-RU', {style: 'currency', currency: 'JPY', maximumFractionDigits: 0})
+  JPY: new Intl.NumberFormat('ru-RU', {style: 'currency', currency: 'JPY', maximumFractionDigits: 0}),
+  USD: new Intl.NumberFormat('ru-RU', {style: 'currency', currency: 'USD', minimumFractionDigits: 2})
 };
 
 function value(id) { return document.querySelector(id).value.trim(); }
@@ -34,6 +35,7 @@ function render(products) {
       <div class="card-body"><span class="store">${escapeHtml(product.source)}</span>
         <div class="title">${escapeHtml(product.title)}</div>
         <div class="price">${(currencies[product.currency] || money).format(product.price)}</div>
+        ${product.original_price ? `<div class="original-price">${currencies[product.original_currency].format(product.original_price)}</div>` : ''}
         <div class="sizes">${escapeHtml(product.sizes.join(' · '))}</div>
       </div>
     </a>`).join('');

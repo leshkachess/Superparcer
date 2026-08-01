@@ -59,3 +59,36 @@ def test_mercari_normalizes_rendered_cards() -> None:
     assert products[0].title == "Nike hoodie"
     assert products[0].price == 8400
     assert products[0].currency == "JPY"
+
+
+def test_mercari_strictly_filters_brand_and_category() -> None:
+    scraper = MercariJPScraper()
+    raw = [
+        {
+            "href": "https://jp.mercari.com/item/m1",
+            "text": "¥4,000",
+            "aria": "ナイキ パーカーの画像 4,000円",
+            "image": "https://example.com/1.jpg",
+            "alt": "ナイキ パーカーのサムネイル",
+        },
+        {
+            "href": "https://jp.mercari.com/item/m2",
+            "text": "¥3,000",
+            "aria": "Adidas パーカーの画像 3,000円",
+            "image": "https://example.com/2.jpg",
+            "alt": "Adidas パーカーのサムネイル",
+        },
+        {
+            "href": "https://jp.mercari.com/item/m3",
+            "text": "¥5,000",
+            "aria": "Nike スニーカーの画像 5,000円",
+            "image": "https://example.com/3.jpg",
+            "alt": "Nike スニーカーのサムネイル",
+        },
+    ]
+    products = scraper._normalize(
+        raw,
+        SearchFilters(brand="Nike", clothing_type="Худи", sources=["mercari_jp"]),
+        24,
+    )
+    assert [product.title for product in products] == ["ナイキ パーカー"]
