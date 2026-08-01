@@ -31,4 +31,11 @@ async def search_products(
                     source_links.append(link)
 
     products.sort(key=lambda product: product.price)
+    products = [
+        product
+        for product in products
+        if (filters.price_from is None or product.price >= filters.price_from)
+        and (filters.price_to is None or product.price <= filters.price_to)
+    ]
+    products = products[:24]
     return SearchResponse(products=products, errors=errors, source_links=source_links)

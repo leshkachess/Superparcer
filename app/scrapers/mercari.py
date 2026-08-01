@@ -3,6 +3,7 @@ import re
 import time
 from urllib.parse import urlencode
 
+from app.browser import browser_semaphore
 from app.config import get_settings
 from app.enrichment import (
     cached_jpy_usd_rate,
@@ -101,7 +102,8 @@ class MercariJPScraper(BaseScraper):
             cached = _cache.get(cache_key)
             if cached and time.monotonic() - cached[0] < settings.mercari_cache_seconds:
                 return cached[1]
-            products = await self._collect(url, filters)
+            async with browser_semaphore:
+                products = await self._collect(url, filters)
             await asyncio.gather(
                 convert_jpy_products_to_usd(products, rate),
                 translate_product_titles_to_russian(products),

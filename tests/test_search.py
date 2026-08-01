@@ -2,20 +2,13 @@ import asyncio
 
 from app.models import SearchFilters
 from app.scrapers import scraper_registry
+from app.scrapers.grailed import GrailedScraper
 from app.scrapers.mercari import MercariJPScraper
 from app.services import search_products
 
 
-def test_search_filters_demo_products() -> None:
-    result = asyncio.run(
-        search_products(
-            SearchFilters(brand="nike", size="M", price_to=9000, sources=["demo"]),
-            scraper_registry(),
-        )
-    )
-    assert len(result.products) == 1
-    assert result.products[0].brand == "Nike"
-    assert result.source_links == []
+def test_registry_contains_only_real_stores() -> None:
+    assert set(scraper_registry()) == {"mercari_jp", "grailed"}
 
 
 def test_unknown_source_is_reported() -> None:
@@ -111,3 +104,40 @@ def test_mercari_pagination_skips_previous_products() -> None:
         raw, SearchFilters(sources=["mercari_jp"], page=2), limit=2, offset=2
     )
     assert [product.title for product in products] == ["Item 3"]
+
+
+def test_grailed_normalizes_and_filters_cards_in_usd() -> None:
+    scraper = GrailedScraper()
+    raw = [
+        {
+            "href": "https://www.grailed.com/listings/1-nike-cap",
+            "designer": "Nike",
+            "title": "Logo Cap",
+            "size": "OS",
+            "price": "$45",
+            "image": "https://media-assets.grailed.com/cap.jpg",
+        },
+        {
+            "href": "https://www.grailed.com/listings/2-nike-belt",
+            "designer": "Nike",
+            "title": "Logo Belt",
+            "size": "OS",
+            "price": "$120",
+            "image": "https://media-assets.grailed.com/belt.jpg",
+        },
+    ]
+    products = scraper._normalize(
+        raw,
+        SearchFilters(
+            brand="Nike",
+            clothing_type="Аксессуар",
+            price_from=20,
+            price_to=60,
+            sources=["grailed"],
+        ),
+    )
+    assert len(products) == 1
+    assert products[0].title == "Logo Cap"
+    assert products[0].price == 45
+    assert products[0].currency == "USD"
+    assert scraper._strip_designer_prefix("Nike Logo Cap", "Nike") == "Logo Cap"

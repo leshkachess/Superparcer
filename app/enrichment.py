@@ -8,7 +8,7 @@ from app.models import Product
 
 _rate_cache: tuple[float, float] | None = None
 _rate_lock = asyncio.Lock()
-_translation_cache: dict[str, str] = {}
+_translation_cache: dict[tuple[str, str], str] = {}
 _translation_semaphore = asyncio.Semaphore(6)
 
 
@@ -52,28 +52,37 @@ def cached_jpy_usd_rate() -> float | None:
 
 
 async def translate_product_titles_to_russian(products: list[Product]) -> None:
-    translated = await asyncio.gather(*(_translate_title(product.title) for product in products))
+    translated = await asyncio.gather(
+        *(translate_text_to_russian(product.title, "ja") for product in products)
+    )
     for product, title in zip(products, translated, strict=True):
         product.title = title
 
 
-async def _translate_title(title: str) -> str:
-    if not re.search(r"[\u3040-\u30ff\u3400-\u9fff]", title):
-        return title
-    if title in _translation_cache:
-        return _translation_cache[title]
+async def translate_text_to_russian(text: str, source_language: str) -> str:
+    if source_language == "ja" and not re.search(r"[\u3040-\u30ff\u3400-\u9fff]", text):
+        return text
+    cache_key = (source_language, text)
+    if cache_key in _translation_cache:
+        return _translation_cache[cache_key]
     async with _translation_semaphore:
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.get(
                     "https://translate.googleapis.com/translate_a/single",
-                    params={"client": "gtx", "sl": "ja", "tl": "ru", "dt": "t", "q": title},
+                    params={
+                        "client": "gtx",
+                        "sl": source_language,
+                        "tl": "ru",
+                        "dt": "t",
+                        "q": text,
+                    },
                 )
                 response.raise_for_status()
                 result = "".join(part[0] for part in response.json()[0] if part[0]).strip()
         except (httpx.HTTPError, IndexError, KeyError, TypeError, ValueError):
-            return title
-        if "パーカー" in title:
+            return text
+        if "パーカー" in text:
             result = re.sub(r"\bпарк(?:а|и|у|ой|е)?\b", "худи", result, flags=re.IGNORECASE)
-        _translation_cache[title] = result or title
-        return _translation_cache[title]
+        _translation_cache[cache_key] = result or text
+        return _translation_cache[cache_key]
