@@ -15,6 +15,7 @@ def test_search_filters_demo_products() -> None:
     )
     assert len(result.products) == 1
     assert result.products[0].brand == "Nike"
+    assert result.source_links == []
 
 
 def test_unknown_source_is_reported() -> None:

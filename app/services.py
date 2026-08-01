@@ -17,16 +17,18 @@ async def search_products(
     )
     products: list[Product] = []
     source_links = []
-    for (source_id, _), result in zip(selected.items(), results, strict=True):
+    for (source_id, scraper), result in zip(selected.items(), results, strict=True):
         if isinstance(result, BaseException):
             errors[source_id] = "Источник временно недоступен"
+            link = scraper.search_link(filters)
+            if link:
+                source_links.append(link)
         else:
             products.extend(result)
-
-    for scraper in selected.values():
-        link = scraper.search_link(filters)
-        if link:
-            source_links.append(link)
+            if not result:
+                link = scraper.search_link(filters)
+                if link:
+                    source_links.append(link)
 
     products.sort(key=lambda product: product.price)
     return SearchResponse(products=products, errors=errors, source_links=source_links)

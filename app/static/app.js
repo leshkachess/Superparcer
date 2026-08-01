@@ -68,7 +68,9 @@ form.addEventListener('submit', async event => {
     render(data.products);
     renderSourceLinks(data.source_links || []);
     const total = data.products.length + (data.source_links?.length || 0);
-    statusNode.textContent = total ? 'Результаты готовы' : 'Ничего не найдено. Попробуй изменить фильтры.';
+    statusNode.textContent = data.products.length
+      ? `Найдено товаров: ${data.products.length}`
+      : (total ? 'Карточки не получены — доступна официальная выдача' : 'Ничего не найдено. Попробуй изменить фильтры.');
   } catch (error) { statusNode.textContent = error.message; }
   finally { button.disabled = false; }
 });
