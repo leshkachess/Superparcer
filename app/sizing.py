@@ -54,3 +54,35 @@ def shoe_size_options(eu_input: str | None) -> tuple[ShoeSize, ...]:
 def format_size(value: float) -> str:
     numeric = float(value)
     return str(int(numeric)) if numeric.is_integer() else str(numeric)
+
+
+WOMEN_US_BY_EU = {
+    35.5: 5,
+    36: 5.5,
+    36.5: 6,
+    37.5: 6.5,
+    38: 7,
+    38.5: 7.5,
+    39: 8,
+    40: 8.5,
+    40.5: 9,
+    41: 9.5,
+    42: 10,
+    42.5: 10.5,
+    43: 11,
+    44: 12.5,
+    44.5: 13,
+    45: 13.5,
+    45.5: 14,
+    46: 14.5,
+    47: 15,
+    47.5: 15.5,
+    48: 16,
+    48.5: 16.5,
+    49: 17,
+    50: 17.5,
+}
+
+
+def women_us_size(eu: float) -> float | None:
+    return WOMEN_US_BY_EU.get(eu)

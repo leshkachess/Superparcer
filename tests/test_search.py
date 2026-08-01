@@ -4,12 +4,13 @@ from app.models import SearchFilters
 from app.scrapers import scraper_registry
 from app.scrapers.grailed import GrailedScraper
 from app.scrapers.mercari import MercariJPScraper
+from app.scrapers.vinted import VintedScraper
 from app.services import search_products
 from app.sizing import shoe_size_options
 
 
 def test_registry_contains_only_real_stores() -> None:
-    assert set(scraper_registry()) == {"mercari_jp", "grailed"}
+    assert set(scraper_registry()) == {"mercari_jp", "grailed", "vinted"}
 
 
 def test_unknown_source_is_reported() -> None:
@@ -158,3 +159,30 @@ def test_mercari_matches_eu_cm_and_us_shoe_sizes() -> None:
     assert scraper._matches_shoe_size("Nike sneakers US 10.5", "44")
     assert scraper._matches_shoe_size("Nike sneakers EU44.5", "44")
     assert not scraper._matches_shoe_size("Nike sneakers 27cm", "44")
+
+
+def test_vinted_normalizes_us_womens_shoe_size_to_eu() -> None:
+    scraper = VintedScraper()
+    products = scraper._normalize(
+        [{
+            "href": "https://www.vinted.com/items/1-nike-sneakers?referrer=catalog",
+            "metadata": (
+                "Nike Air Max sneakers, Brand: Nike, Condition: Very good, "
+                "Size: 12.5, 75.00 $, 80.25 $"
+            ),
+            "image": "https://images1.vinted.net/t/01.jpg",
+        }],
+        SearchFilters(
+            brand="Nike",
+            size="44",
+            clothing_type="Обувь",
+            price_from=50,
+            price_to=100,
+            sources=["vinted"],
+        ),
+    )
+    assert len(products) == 1
+    assert products[0].title == "Air Max sneakers"
+    assert products[0].sizes == ["EU 44"]
+    assert products[0].price == 75
+    assert products[0].currency == "USD"
