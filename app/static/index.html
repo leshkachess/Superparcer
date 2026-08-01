@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Поиск одежды</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <span class="eyebrow">SUPERPARCER</span>
+      <h1>Найди ту самую вещь</h1>
+      <p>Соберём подходящие варианты из выбранных магазинов.</p>
+    </header>
+
+    <form id="filters">
+      <label>Бренд<input id="brand" placeholder="Nike, Stone Island…"></label>
+      <div class="row">
+        <label>Размер<input id="size" placeholder="M / 42"></label>
+        <label>Категория
+          <select id="clothing-type">
+            <option value="">Любая</option>
+            <option>Футболка</option><option>Худи</option><option>Куртка</option>
+            <option>Брюки</option><option>Джинсы</option><option>Обувь</option>
+            <option>Аксессуар</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <label>Цена от<input id="price-from" type="number" min="0" placeholder="0"></label>
+        <label>Цена до<input id="price-to" type="number" min="0" placeholder="В валюте сайта"></label>
+      </div>
+      <fieldset><legend>Где искать</legend><div id="sources" class="sources"></div></fieldset>
+      <button type="submit">Найти вещи</button>
+    </form>
+
+    <section id="status" class="status" hidden></section>
+    <section id="source-links" class="source-links"></section>
+    <section id="results" class="results"></section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
