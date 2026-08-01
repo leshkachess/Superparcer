@@ -208,7 +208,11 @@ class GrailedScraper(BaseScraper):
         return products
 
     def search_link(self, filters: SearchFilters) -> SourceSearchLink:
-        if filters.clothing_type:
+        if filters.brand and filters.clothing_type:
+            slug = self._slug(filters.brand)
+            category = self._category_paths[filters.clothing_type]
+            url = f"{self.base_url}/designers/{slug}/{category}"
+        elif filters.clothing_type:
             url = f"{self.base_url}/categories/{self._category_paths[filters.clothing_type]}"
         elif filters.brand:
             slug = self._slug(filters.brand)

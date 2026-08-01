@@ -145,6 +145,18 @@ def test_grailed_normalizes_and_filters_cards_in_usd() -> None:
     assert scraper._strip_designer_prefix("Nike Logo Cap", "Nike") == "Logo Cap"
 
 
+def test_grailed_combines_designer_and_category_in_search_url() -> None:
+    scraper = GrailedScraper()
+    filters = SearchFilters(
+        brand="Nike",
+        clothing_type="Худи",
+        sources=["grailed"],
+    )
+    assert str(scraper.search_link(filters).url) == (
+        "https://www.grailed.com/designers/nike/sweatshirts-hoodies"
+    )
+
+
 def test_eu_shoe_size_expands_to_half_size_cm_and_us() -> None:
     options = shoe_size_options("44")
     assert [(size.eu, size.cm, size.us) for size in options] == [
