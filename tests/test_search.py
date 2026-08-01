@@ -5,6 +5,7 @@ from app.scrapers import scraper_registry
 from app.scrapers.grailed import GrailedScraper
 from app.scrapers.mercari import MercariJPScraper
 from app.services import search_products
+from app.sizing import shoe_size_options
 
 
 def test_registry_contains_only_real_stores() -> None:
@@ -141,3 +142,19 @@ def test_grailed_normalizes_and_filters_cards_in_usd() -> None:
     assert products[0].price == 45
     assert products[0].currency == "USD"
     assert scraper._strip_designer_prefix("Nike Logo Cap", "Nike") == "Logo Cap"
+
+
+def test_eu_shoe_size_expands_to_half_size_cm_and_us() -> None:
+    options = shoe_size_options("44")
+    assert [(size.eu, size.cm, size.us) for size in options] == [
+        (44, 28, 10),
+        (44.5, 28.5, 10.5),
+    ]
+
+
+def test_mercari_matches_eu_cm_and_us_shoe_sizes() -> None:
+    scraper = MercariJPScraper()
+    assert scraper._matches_shoe_size("Nike sneakers 28cm", "44")
+    assert scraper._matches_shoe_size("Nike sneakers US 10.5", "44")
+    assert scraper._matches_shoe_size("Nike sneakers EU44.5", "44")
+    assert not scraper._matches_shoe_size("Nike sneakers 27cm", "44")

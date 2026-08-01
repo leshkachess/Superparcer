@@ -13,6 +13,7 @@ from app.enrichment import (
 )
 from app.models import ClothingType, Product, SearchFilters, SourceSearchLink
 from app.scrapers.base import BaseScraper
+from app.sizing import ShoeSize, format_size, shoe_size_options
 
 try:
     from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -204,6 +205,11 @@ class MercariJPScraper(BaseScraper):
                 continue
             if filters.clothing_type and not self._matches_category(title, filters.clothing_type):
                 continue
+            matched_shoe_size = None
+            if filters.size and filters.clothing_type == ClothingType.SHOES:
+                matched_shoe_size = self._match_shoe_size(title, filters.size)
+                if matched_shoe_size is None:
+                    continue
 
             seen.add(url)
             if offset:
@@ -214,7 +220,11 @@ class MercariJPScraper(BaseScraper):
                     source=self.source_name,
                     title=title,
                     brand=filters.brand,
-                    sizes=[filters.size] if filters.size else [],
+                    sizes=(
+                        [f"EU {format_size(matched_shoe_size.eu)}"]
+                        if matched_shoe_size
+                        else ([filters.size] if filters.size else [])
+                    ),
                     price=price,
                     currency="JPY",
                     clothing_type=filters.clothing_type,
@@ -245,13 +255,38 @@ class MercariJPScraper(BaseScraper):
             return False
         return any(word in folded_title for word in cls._category_keywords[category])
 
+    @staticmethod
+    def _matches_shoe_size(title: str, eu_size: str) -> bool:
+        return MercariJPScraper._match_shoe_size(title, eu_size) is not None
+
+    @staticmethod
+    def _match_shoe_size(title: str, eu_size: str) -> ShoeSize | None:
+        for option in shoe_size_options(eu_size):
+            eu = re.escape(format_size(option.eu))
+            cm = re.escape(format_size(option.cm))
+            us = re.escape(format_size(option.us))
+            patterns = (
+                rf"(?:EU|EUR|サイズ)\s*{eu}(?![\d.])",
+                rf"(?<![\d.]){eu}\s*(?:EU|EUR|サイズ)",
+                rf"(?<![\d.]){cm}\s*(?:cm|センチ)(?![\d.])",
+                rf"(?:US|米国)\s*{us}(?![\d.])",
+                rf"(?<![\d.]){us}\s*US(?![\d.])",
+            )
+            if any(re.search(pattern, title, flags=re.IGNORECASE) for pattern in patterns):
+                return option
+        return None
+
     def search_link(self, filters: SearchFilters) -> SourceSearchLink:
         return self._search_link(filters, cached_jpy_usd_rate())
 
     def _search_link(
         self, filters: SearchFilters, jpy_usd_rate: float | None
     ) -> SourceSearchLink:
-        terms = [filters.brand, filters.size]
+        size_term = filters.size
+        if filters.clothing_type == ClothingType.SHOES:
+            options = shoe_size_options(filters.size)
+            size_term = format_size(options[0].cm) if options else filters.size
+        terms = [filters.brand, size_term]
         if filters.clothing_type:
             terms.append(self._category_terms[filters.clothing_type])
 

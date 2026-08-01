@@ -8,6 +8,7 @@ from app.config import get_settings
 from app.enrichment import translate_text_to_russian
 from app.models import ClothingType, Product, SearchFilters, SourceSearchLink
 from app.scrapers.base import BaseScraper
+from app.sizing import format_size, shoe_size_options
 
 try:
     from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -138,7 +139,7 @@ class GrailedScraper(BaseScraper):
         products: list[Product] = []
         seen: set[str] = set()
         offset = (filters.page - 1) * self.page_size
-        category_page = not filters.brand and filters.clothing_type is not None
+        category_page = filters.clothing_type is not None
 
         for item in raw_items:
             url = item.get("href", "").split("?")[0]
@@ -154,8 +155,27 @@ class GrailedScraper(BaseScraper):
             price = float(price_match.group(1).replace(",", ""))
             if filters.brand and self._normalize_text(filters.brand) not in self._normalize_text(designer):
                 continue
-            if filters.size and filters.size.casefold() != item.get("size", "").strip().casefold():
-                continue
+            if filters.size:
+                listed_size = item.get("size", "").strip().casefold().replace(",", ".")
+                display_size = item.get("size", "").strip()
+                if filters.clothing_type == ClothingType.SHOES:
+                    options = shoe_size_options(filters.size)
+                    normalized_listed = listed_size.removeprefix("us ").removeprefix("eu ")
+                    matched = next(
+                        (
+                            option
+                            for option in options
+                            if normalized_listed == format_size(option.us)
+                        ),
+                        None,
+                    )
+                    if matched is None:
+                        continue
+                    display_size = f"EU {format_size(matched.eu)}"
+                elif filters.size.casefold() != listed_size:
+                    continue
+            else:
+                display_size = item.get("size", "").strip()
             if filters.clothing_type and not category_page:
                 if not any(
                     keyword in title.casefold()
@@ -175,7 +195,7 @@ class GrailedScraper(BaseScraper):
                     source=self.source_name,
                     title=title,
                     brand=designer,
-                    sizes=[item["size"].strip()] if item.get("size", "").strip() else [],
+                    sizes=[display_size] if display_size else [],
                     price=price,
                     currency="USD",
                     clothing_type=filters.clothing_type,
@@ -188,11 +208,11 @@ class GrailedScraper(BaseScraper):
         return products
 
     def search_link(self, filters: SearchFilters) -> SourceSearchLink:
-        if filters.brand:
+        if filters.clothing_type:
+            url = f"{self.base_url}/categories/{self._category_paths[filters.clothing_type]}"
+        elif filters.brand:
             slug = self._slug(filters.brand)
             url = f"{self.base_url}/designers/{slug}"
-        elif filters.clothing_type:
-            url = f"{self.base_url}/categories/{self._category_paths[filters.clothing_type]}"
         else:
             url = f"{self.base_url}/shop"
         return SourceSearchLink(
